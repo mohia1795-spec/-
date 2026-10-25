@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل الأسعار</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f1f5f1;margin:0;padding:15px;text-align:center}
+header{background:#14532d;color:white;padding:20px;border-radius:12px}
+.card{background:white;padding:18px;margin:15px 0;border-radius:12px}
+input{width:90%;padding:13px;margin:7px 0;font-size:17px;border:1px solid #aaa;border-radius:8px}
+button{padding:13px;margin:5px;background:#14532d;color:white;border:0;border-radius:8px;font-size:16px}
+#price{font-size:45px;font-weight:bold;color:#14532d}
+#nameDisplay{font-size:25px;font-weight:bold}
+.item{padding:12px;border-bottom:1px solid #ddd}
+</style>
+</head>
+<body>
+<header>
+<h1>دليل الأسعار</h1>
+<p>اعرف سعر المنتج بسرعة</p>
+</header>
+
+<div class="card">
+<h2>البحث عن منتج</h2>
+<input id="search" placeholder="اكتب اسم المنتج أو الباركود">
+<button onclick="searchProduct()">🔎 بحث</button>
+<button onclick="scan()">📷 مسح الباركود بالكاميرا</button>
+<div id="nameDisplay">اسم المنتج</div>
+<div id="price">—</div>
+<div id="message"></div>
+<video id="video" style="width:100%;display:none" playsinline></video>
+</div>
+
+<div class="card">
+<h2>إضافة منتج</h2>
+<input id="pname" placeholder="اسم المنتج">
+<input id="barcode" placeholder="رقم الباركود">
+<input id="pprice" type="number" step="0.01" placeholder="سعر البيع بالريال">
+<button onclick="saveProduct()">💾 حفظ المنتج</button>
+</div>
+
+<div class="card">
+<h2>المنتجات المحفوظة</h2>
+<div id="list"></div>
+</div>
+
+<script>
+let products=[];
+try{products=JSON.parse(localStorage.getItem('daleel_products')||'[]')}catch(e){products=[]}
+
+function saveProduct(){
+let name=document.getElementById('pname').value.trim();
+let barcode=document.getElementById('barcode').value.trim();
+let price=document.getElementById('pprice').value;
+if(!name||price===''){alert('اكتب اسم المنتج والسعر');return}
+let i=products.findIndex(p=>barcode&&p.barcode===barcode);
+let p={name,barcode,price:Number(price)};
+if(i>=0)products[i]=p;else products.push(p);
+localStorage.setItem('daleel_products',JSON.stringify(products));
+document.getElementById('pname').value='';
+document.getElementById('barcode').value='';
+document.getElementById('pprice').value='';
+render();alert('تم حفظ المنتج');
+}
+function searchProduct(){
+let q=document.getElementById('search').value.trim().toLowerCase();
+let p=products.find(x=>(x.barcode||'').toLowerCase()===q)||products.find(x=>x.name.toLowerCase().includes(q));
+document.getElementById('nameDisplay').textContent=p?p.name:'لم يتم العثور على المنتج';
+document.getElementById('price').textContent=p?Number(p.price).toFixed(2)+' ريال':'—';
+document.getElementById('message').textContent=p&&p.barcode?'الباركود: '+p.barcode:'';
+}
+function render(){
+let list=document.getElementById('list');list.innerHTML='';
+products.forEach((p,i)=>{
+let d=document.createElement('div');d.className='item';
+let t=document.createElement('span');t.textContent=p.name+' — '+Number(p.price).toFixed(2)+' ريال ';
+let b=document.createElement('button');b.textContent='حذف';b.onclick=()=>{products.splice(i,1);localStorage.setItem('daleel_products',JSON.stringify(products));render()};
+d.append(t,b);list.append(d);
+});
+}
+async function scan(){
+const video=document.getElementById('video');
+if(!('BarcodeDetector' in window)){alert('المتصفح لا يدعم قراءة الباركود مباشرة. يمكنك إدخال الرقم يدويًا.');return}
+try{
+let detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+let stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+video.srcObject=stream;video.style.display='block';await video.play();
+document.getElementById('message').textContent='وجّه الكاميرا نحو الباركود';
+let timer=setInterval(async()=>{
+try{
+let codes=await detector.detect(video);
+if(codes.length){
+document.getElementById('search').value=codes[0].rawValue;
+document.getElementById('barcode').value=codes[0].rawValue;
+stream.getTracks().forEach(t=>t.stop());clearInterval(timer);
+video.style.display='none';searchProduct();
+}
+}catch(e){}
+},300);
+}catch(e){alert('تعذر تشغيل الكاميرا. اسمح لمتصفح Chrome باستخدام الكاميرا وافتح الموقع عبر HTTPS.')}
+}
+render();
+</script>
+</body>
+</html>
